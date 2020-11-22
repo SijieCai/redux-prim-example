@@ -16,22 +16,22 @@ interface PrimUpdaterImpls<T extends Dictionary> {
   mergeState: (p: UpdateParam<T>) => Dictionary
 }
 interface PrimUpdaters<T extends Dictionary> {
-  initState: (p: Dictionary) => PrimAction<T>,
+  initState: (p?: Dictionary) => PrimAction<T>,
   setState: (p: Dictionary | ((s: Readonly<T>) => Dictionary)) => PrimAction<T>,
   mergeState: (p: Dictionary) => PrimAction<T>
 }
-var _actionTypePrefix = '@prim'
+const _actionTypePrefix = '@prim'
 
 function stringify(x: any) {
-  var type = getType(x);
+  const type = getType(x);
   if (['[Number]', '[Boolean]', '[Undefined]'].indexOf(type) > 0) {
     return x
   }
   return type
 }
 
-function querify(payload: Dictionary) {
-  var payloadStr = stringify(payload)
+function querify(payload: Dictionary = {}) {
+  const payloadStr = stringify(payload)
   if (payloadStr === '[Object]') {
     return Object.keys(payload)
       .map(key => `${key}=${stringify(payload[key])}`)
@@ -49,41 +49,38 @@ function updaterActionCreators<T>(namespace: string): PrimUpdaters<T> {
       updaterName
     }
   }
-  var ns = namespace
+  const ns = namespace
 
-  function updaterActionCreator(updaterName: keyof PrimUpdaterImpls<T>) {
-    return function (payload: Dictionary | ((state: T) => Dictionary)): PrimAction<T> {
-      return {
-        type: `${_actionTypePrefix}/${ns}/${updaterName}/?${querify(payload)}`,
-        payload,
-        meta: getMeta(updaterName)
-      }
+  function createAction(updaterName: keyof PrimUpdaterImpls<T>, payload?: Dictionary): PrimAction<T> {
+    return {
+      type: `${_actionTypePrefix}/${ns}/${updaterName}/?${querify(payload)}`,
+      payload,
+      meta: getMeta(updaterName)
     }
   }
 
   return {
-    initState: updaterActionCreator('initState'),
-    setState: function (payload: Dictionary | ((state: T) => Dictionary)): PrimAction<T> {
-      return {
-        type: `${_actionTypePrefix}/${ns}/${'setState'}/?${querify(payload)}`,
-        payload,
-        meta: getMeta('setState')
-      }
+    initState: (state?: Dictionary): PrimAction<T> => {
+      return createAction('initState', state);
     },
-    mergeState: updaterActionCreator('mergeState')
+    setState: (payload: Dictionary | ((state: T) => Dictionary)): PrimAction<T> => {
+      return createAction('setState', payload);
+    },
+    mergeState: (payload: Dictionary) => {
+      return createAction('mergeState', payload);
+    }
   }
 }
 
 
-function isMatchedAction<T>(action: PrimAction<T>, namespace: string) {
-  var meta = action.meta
-  if (!meta || Object.prototype.toString.call(meta) !== '[object Object]') {
-    return false
-  }
-  return meta.isPrimAction && meta.namespace === namespace
+function isMatchedAction<T>(namespace: string, action?: PrimAction<T>) {
+  const meta = action?.meta;
+  return meta?.isPrimAction && meta?.namespace === namespace;
 }
 
-export function createSlice<T extends { [key: string]: (...args: any) => PrimAction<P> | ((dispatch: ((action: PrimAction<P>) => void)) => void) }, P extends Dictionary>(
+
+type ThunkCallback<T> = (dispatch: ((action: PrimAction<T>) => void), getState: () => T) => void;
+export default function createSlice<T extends { [key: string]: (...args: any) => PrimAction<P> | ThunkCallback<P> }, P extends Dictionary>(
   namespace: string,
   getDefaultState: () => P,
   creator: (updaters: PrimUpdaters<P>) => T
@@ -94,47 +91,49 @@ export function createSlice<T extends { [key: string]: (...args: any) => PrimAct
 
   const actions = creator(updaterActionCreators<P>(namespace));
 
-  const reducer = (state: P = getDefaultState(), action: PrimAction<P>): any => {
-    if (!isMatchedAction(action, namespace)) return state
+  const reducer = {
+    [namespace]: (state: Dictionary = getDefaultState(), action?: PrimAction<P>): any => {
+      if (!isMatchedAction(namespace, action)) return state
 
-    var { updaterName } = action.meta as PrimMeta<P>;
+      const { updaterName } = action?.meta as PrimMeta<P>;
 
-    const _updaters: PrimUpdaterImpls<P> = {
-      initState({ action, getDefaultState }) {
-        return Object.assign({}, getDefaultState(), action.payload);
-      },
-      setState({ state, action }) {
-        if (typeof action.payload === 'function') {
-          let reducer = action.payload as ((s: P) => Dictionary);
-          return reducer(state);
-        }
-        return Object.assign({}, state, action.payload);
-      },
-      mergeState({ state, action }) {
-        const payload = action.payload
-        return Object.keys(payload).reduce(function (s: Dictionary, key: string) {
-          if (getType(s[key]) === '[Object]' && getType(payload[key]) === '[Object]') {
-            s[key] = Object.assign({}, s[key], payload[key])
-          } else {
-            s[key] = payload[key]
+      const _updaters: PrimUpdaterImpls<P> = {
+        initState({ action, getDefaultState }) {
+          return Object.assign({}, getDefaultState(), action.payload);
+        },
+        setState({ state, action }) {
+          if (typeof action.payload === 'function') {
+            let reducer = action.payload as ((s: P) => Dictionary);
+            return reducer(state);
           }
-          return s
-        }, Object.assign({}, state))
+          return Object.assign({}, state, action.payload);
+        },
+        mergeState({ state, action }) {
+          const payload = action.payload
+          return Object.keys(payload).reduce(function (s: Dictionary, key: string) {
+            if (getType(s[key]) === '[Object]' && getType(payload[key]) === '[Object]') {
+              s[key] = Object.assign({}, s[key], payload[key])
+            } else {
+              s[key] = payload[key]
+            }
+            return s
+          }, Object.assign({}, state))
+        }
+      }
+      if (updaterName) {
+        return _updaters[updaterName]({
+          state: state as P,
+          action: action as PrimAction<P>,
+          getDefaultState
+        })
+      }
+      if (!reducer) {
+        throw new Error(
+          `reducer function is not defined in createPrimReducer("${namespace}", getDefaultState, reducer)`
+        )
       }
     }
-    if (updaterName) {
-      return _updaters[updaterName]({
-        state,
-        action,
-        getDefaultState
-      })
-    }
-    if (!reducer) {
-      throw new Error(
-        `reducer function is not defined in createPrimReducer("${namespace}", getDefaultState, reducer)`
-      )
-    }
-  }
+  };
 
   return { actions, reducer, selector: (state: Dictionary): P => state[namespace] };
 }

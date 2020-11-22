@@ -1,4 +1,4 @@
-import { createSlice } from './prim';
+import createSlice from './prim';
 
 const slice = createSlice('app',
   () => ({
@@ -14,6 +14,3 @@ const slice = createSlice('app',
 );
 
 export default slice;
-export const appActions = slice.actions;
-export const appReducer = slice.reducer;
-export const appSelector = slice.selector;

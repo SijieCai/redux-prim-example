@@ -1,5 +1,5 @@
-import { createSlice } from './prim';
-import { appActions } from './appSlice';
+import createSlice from './prim';
+import appSlice from './appSlice';
 
 const slice = createSlice('user',
   () => ({
@@ -26,7 +26,7 @@ const slice = createSlice('user',
       },
       getBackground(id: string | number) {
         return (dispatch) => {
-          dispatch(appActions.loading(true))
+          dispatch(appSlice.actions.loading(true))
           setTimeout(() => {
             dispatch(mergeState({
               otherInfo: {
@@ -35,7 +35,7 @@ const slice = createSlice('user',
                 primarySchool: 'primarySchool xxx'
               }
             }));
-            dispatch(appActions.loading(false));
+            dispatch(appSlice.actions.loading(false));
           }, 2000)
         }
       },
@@ -47,6 +47,3 @@ const slice = createSlice('user',
 );
 
 export default slice;
-export const userActions = slice.actions;
-export const userReducer = slice.reducer;
-export const userSelector = slice.selector;

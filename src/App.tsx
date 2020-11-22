@@ -1,14 +1,14 @@
 import React, { useCallback } from 'react';
 import './App.css';
-import { userActions, userSelector } from './store/userSlice';
+import userSlice from './store/userSlice';
 import { useSelector, useDispatch } from 'react-redux';
 
 function App() {
-  const user = useSelector(userSelector);
+  const user = useSelector(userSlice.selector);
   const dispatch = useDispatch();
-  const fixAgeCallback = useCallback(() => dispatch(userActions.setAge(16)), []);
-  const getBackground = useCallback(() => dispatch(userActions.getBackground(user.id)), []);
-  const reset = useCallback(()=>dispatch(userActions.reset()), []);
+  const fixAgeCallback = useCallback(() => dispatch(userSlice.actions.setAge(16)), []);
+  const getBackground = useCallback(() => dispatch(userSlice.actions.getBackground(user.id)), []);
+  const reset = useCallback(()=>dispatch(userSlice.actions.reset()), []);
   return (
     <div className="App">
       <header className="App-header">
