@@ -1,4 +1,4 @@
-import createSlice from './prim';
+import createSlice from 'redux-prim';
 import appSlice from './appSlice';
 
 const slice = createSlice('user',
